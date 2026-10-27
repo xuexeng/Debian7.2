@@ -50,7 +50,7 @@
 
 ### 8. 用户名修理
 
-- 将run ./home/admin/Tools/Software Download Center.sh，替换为run ./home/root/Tools/Software Download Center.sh
+- 将run ./home/admin/Tools/Software Download Center.sh，替换为run /home/root/Tools/Software Download Center.sh
 
 ## 当前已知限制
 

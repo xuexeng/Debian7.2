@@ -48,6 +48,10 @@
 
 - 将自定义 `prompt()` 函数重命名为 `renderPrompt()`，并同步更新相关调用，减少与浏览器内置 `prompt()` 函数发生名称混淆的可能。
 
+### 8. 用户名修理
+
+- 将run ./home/admin/Tools/Software Download Center.sh，替换为run ./home/root/Tools/Software Download Center.sh
+
 ## 当前已知限制
 
 以下功能仍有待后续改进：

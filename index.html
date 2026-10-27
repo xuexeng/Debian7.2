@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Debian Terminal Simulator</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:#111;color:#eee;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+body{overflow:hidden}button,textarea,input{font:inherit}
+#app{height:100dvh;display:flex;flex-direction:column;background:#111}
+#bar{min-height:42px;display:flex;align-items:center;gap:8px;padding:6px 10px;background:#252525;border-bottom:1px solid #444;flex:none}
+.dots{display:flex;gap:6px;margin-right:5px}.dot{width:10px;height:10px;border-radius:50%;background:#777}
+#title{font-size:13px;color:#ddd;flex:1}
+.topbtn{background:#383838;border:1px solid #555;color:#fff;border-radius:7px;padding:7px 10px;cursor:pointer}
+#terminalView{display:flex;flex-direction:column;flex:1;min-height:0}
+#screen{flex:1;min-height:0;overflow:auto;padding:12px 14px;line-height:1.45;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.line{margin:0 0 2px}.prompt{color:#79d279}.path{color:#65b7ff}.cmd{color:#fff}.out{color:#ddd}.err{color:#ff7777}.info{color:#aaa}.ok{color:#78e08f}
+#inputrow{display:flex;align-items:center;padding:7px 12px calc(12px + env(safe-area-inset-bottom));gap:0;border-top:1px solid #333;flex:none}
+#prompt{white-space:pre;color:#79d279;font-size:14px}
+#input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#fff;font:inherit;font-size:16px;caret-color:#fff;padding:5px 0;touch-action:manipulation}
+#guiView{display:none;flex:1;min-height:0;flex-direction:column;background:#20232a}
+#desktop{background:linear-gradient(135deg,rgba(22,30,66,.25),rgba(22,12,45,.1)),radial-gradient(ellipse at 20% 15%,#426b91 0%,transparent 42%),linear-gradient(135deg,#15213b,#4d3768 55%,#172b46);position:relative}
+#desktopHome{display:flex;align-content:flex-start;gap:14px;flex-wrap:wrap;padding:16px}
+.appIcon{width:92px;min-height:82px;border:1px solid #ffffff38;border-radius:12px;background:#10182799;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:10px 5px;cursor:pointer;text-align:center}
+.appIcon .glyph{font-size:27px}.appIcon span:last-child{font-size:12px}
+.appWindow{display:none;position:absolute;inset:12px;background:#151922f5;border:1px solid #8d9ab7;border-radius:12px;box-shadow:0 12px 36px #0009;overflow:auto;z-index:3;flex-direction:column}
+.appWindow.open{display:flex}.appWindow .windowTitle{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1}.windowTitle .winName{flex:1}
+.closeBtn{border:1px solid #ff9c9c;background:#8d3038;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer}
+#htmlWorkspace{display:grid;grid-template-columns:1fr;gap:8px;padding:8px;min-height:0}
+#weatherForm{padding:14px;display:flex;flex-direction:column;gap:10px;color:#eef3ff}#weatherForm input{width:100%;padding:11px;border-radius:7px;border:1px solid #59657a;background:#0d1118;color:#fff;font-size:16px}#weatherResult{padding:14px;margin:0 14px 14px;border-radius:10px;background:#253349;color:#fff;white-space:pre-wrap;line-height:1.6;min-height:90px}
+#weatherForm button{align-self:flex-start}
+@media(min-width:800px){#htmlWorkspace{grid-template-columns:1fr 1fr}#editor{height:330px}#preview{height:390px}}
+#guiHeader{padding:9px 12px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #444;background:#292d35;flex:none}
+#guiHeader strong{flex:1;font-size:14px}
+#eventLog{font-size:12px;color:#9da8b8;padding:7px 12px;border-bottom:1px solid #3b3f47;max-height:72px;overflow:auto;white-space:pre-wrap;flex:none}
+#desktop{flex:1;min-height:0;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.window{border:1px solid #505661;border-radius:9px;background:#16181d;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.windowTitle{padding:8px 10px;background:#303640;color:#f0f0f0;font-size:13px;border-bottom:1px solid #505661}
+#editor{width:100%;min-height:130px;resize:vertical;background:#101216;color:#d8e6ff;border:0;padding:10px;outline:none;font:13px/1.45 ui-monospace,monospace}
+#preview{display:block;width:100%;height:240px;border:0;background:white}
+#previewActions{display:flex;gap:8px;padding:8px;background:#252a32;align-items:center;flex-wrap:wrap}
+.smallbtn{background:#444b57;border:1px solid #626a78;border-radius:6px;padding:7px 10px;color:white}
+#previewStatus{font-size:12px;color:#b8c2d1}
+.hidden{display:none!important}
+/* AI 聊天窗口 */
+#aiChat{display:flex;flex-direction:column;gap:10px;padding:12px;min-height:0;flex:1;color:#3a3228;background:linear-gradient(180deg,#faf8f4,#f5f0e8)}
+#aiMessages{display:flex;flex-direction:column;gap:9px;overflow:auto;flex:1;min-height:130px;padding:4px}
+.aiBubble{max-width:88%;padding:10px 13px;border-radius:15px;line-height:1.5;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.aiBubble.bot{align-self:flex-start;background:#fffef9;border:1px solid #e0d5c7}
+.aiBubble.user{align-self:flex-end;background:#d9edf9;border:1px solid #b9d9ec}
+#aiComposer{display:flex;gap:8px;align-items:flex-end}
+#aiInput{flex:1;min-width:0;resize:vertical;min-height:42px;max-height:100px;padding:10px;border:1px solid #cfc4b7;border-radius:13px;font:14px sans-serif;background:#fff;color:#302a24}
+#aiSend{border:0;border-radius:50%;width:42px;height:42px;background:#7eb8da;color:#fff;font-size:20px;cursor:pointer}
+#aiSettings{padding:10px 12px;background:#f0e9df;border-top:1px solid #e0d5c7;color:#3a3228;font-size:12px}
+#aiSettings summary{cursor:pointer}
+#aiSettings input{width:100%;padding:8px;margin:4px 0 8px;border:1px solid #d1c4b5;border-radius:7px;background:#fff;color:#302a24}
+#aiSave{padding:7px 10px;border:0;border-radius:7px;background:#7eb8da;color:#fff}
+.aiHint{font-size:11px;color:#8a7b6e;line-height:1.4}
+@media(min-width:800px){#desktop{display:grid;grid-template-columns:minmax(280px,1fr) minmax(300px,1fr);align-content:start}#editor{height:330px}#preview{height:390px}.window{height:auto}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar">
+    <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <div id="title">Debian GNU/Linux — Terminal Simulator</div>
+    <button class="topbtn" id="guiButton" type="button">▦ 图形环境</button>
+  </div>
+  <section id="terminalView">
+    <div id="screen" aria-live="polite"></div>
+    <div id="inputrow"><span id="prompt"></span><input id="input" aria-label="终端命令输入" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send"></div>
+  </section>
+  <section id="guiView">
+    <div id="guiHeader"><strong>▦ X11 图形环境（模拟）</strong><button class="topbtn" id="terminalButton">返回终端</button></div>
+    <div id="eventLog">X11 event bridge ready. 等待终端事件……</div>
+    <div id="desktop">
+      <div id="desktopHome">
+        <button class="appIcon" id="openHtml"><span class="glyph">🌐</span><span>HTML Preview</span></button>
+        <button class="appIcon" id="openWeather"><span class="glyph">🌦️</span><span>天气查询</span></button>
+        <button class="appIcon" id="openAI"><span class="glyph">🐺</span><span>AI 聊天</span></button>
+      </div>
+      <section class="appWindow" id="htmlApp">
+        <div class="windowTitle"><span class="winName">🌐 HTML Preview</span><button class="closeBtn" data-close="htmlApp">关闭 ✕</button></div>
+        <div id="htmlWorkspace">
+          <div class="window"><div class="windowTitle">HTML 编辑器</div>
+            <textarea id="editor" autocapitalize="off" spellcheck="false" aria-label="HTML Preview 代码编辑器"><!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Hello</title></head>
+<body style="font-family:sans-serif;padding:24px">
+  <h1>Hello, Kivotos!</h1>
+  <p>在这里输入 HTML，下面的浏览框会实时预览。</p>
+  <button onclick="document.querySelector('p').textContent='按钮事件正常！'">点我测试</button>
+</body>
+</html></textarea>
+            <div id="previewActions"><button class="smallbtn" id="runPreview">运行 / 刷新预览</button><span id="previewStatus">实时预览已启用</span></div>
+          </div>
+          <div class="window"><div class="windowTitle">浏览器 — 预览效果</div><iframe id="preview" title="HTML 预览" sandbox="allow-scripts"></iframe></div>
+        </div>
+      </section>
+      <section class="appWindow" id="weatherApp">
+        <div class="windowTitle"><span class="winName">🌦️ 天气查询</span><button class="closeBtn" data-close="weatherApp">关闭 ✕</button></div>
+        <form id="weatherForm"><label>国家 / 地区<input id="weatherCountry" placeholder="例如：China / 中国" autocomplete="country-name"></label><label>城市、地址或地点<input id="weatherPlace" placeholder="例如：Shanghai / 上海" autocomplete="street-address" required></label><button class="smallbtn" type="submit">查询天气</button><span style="font-size:12px;color:#b9c5d8">需要联网；使用 Open-Meteo 地理编码与天气数据。</span></form>
+        <div id="weatherResult">请输入国家和地址/城市，然后点击“查询天气”。</div>
+      </section>
+      <section class="appWindow" id="aiApp">
+        <div class="windowTitle"><span class="winName">🐺 AI 聊天</span><button class="closeBtn" data-close="aiApp">关闭 ✕</button></div>
+        <div id="aiChat">
+          <div id="aiMessages"><div class="aiBubble bot">……老师。你好。<br>可以在设置里填入你自己的 AI 接口。</div></div>
+          <div id="aiComposer"><textarea id="aiInput" rows="1" placeholder="和 AI 说点什么吧……"></textarea><button id="aiSend" title="发送">↑</button></div>
+        </div>
+        <details id="aiSettings"><summary>AI 接口设置</summary>
+          <label>接口地址（OpenAI 兼容）<input id="aiUrl" placeholder="https://example.com/v1/chat/completions"></label>
+          <label>模型名称<input id="aiModel" placeholder="例如：glm-4-flash"></label>
+          <label>API Key（只保存在本浏览器）<input id="aiKey" type="password" placeholder="填写你自己的 API Key"></label>
+          <div class="aiHint">出于安全考虑，没有把参考网页里写死的密钥复制进来。请填写自己的接口和密钥；此页面若公开托管，任何访问者都可能通过开发者工具读取 localStorage 中的密钥；浏览器直连 API 会暴露密钥。请勿填写重要或长期密钥，公开部署应改用自己的后端代理。</div>
+          <button id="aiSave" type="button">保存设置</button>
+        </details>
+      </section>
+    </div>
+  </section>
+</div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const screen=$("screen"),input=$("input"),promptEl=$("prompt"),guiView=$("guiView"),terminalView=$("terminalView");
+const state={user:"root",host:"localhost",cwd:"/root",history:[],histPos:0,guiEvents:[],env:{HOME:"/root",USER:"root",SHELL:"/bin/bash",TERM:"xterm-256color",LANG:"zh_CN.UTF-8"},fs:{
+"/":{type:"dir"},"/bin":{type:"dir"},"/etc":{type:"dir"},"/home":{type:"dir"},"/root":{type:"dir"},"/root/Documents":{type:"dir"},"/root/Downloads":{type:"dir"},"/root/Tools":{type:"dir"},"/home/admin":{type:"dir"},"/home/admin/Documents":{type:"dir"},"/home/admin/Downloads":{type:"dir"},"/tmp":{type:"dir"},"/usr":{type:"dir"},"/usr/bin":{type:"dir"},"/var":{type:"dir"},"/var/log":{type:"dir"},
+"/etc/hostname":{type:"file",content:"localhost"},"/etc/os-release":{type:"file",content:'PRETTY_NAME="Debian GNU/Linux 13 (trixie)"\nNAME="Debian GNU/Linux"\nID=debian\nVERSION_ID="13"\nVERSION_CODENAME=trixie'}},
+installed:new Set(["bash","coreutils","dpkg","apt","debianutils","grep","sed","tar","gzip","nano","vim-tiny"])};
+const commands=("alias apropos apt apt-cache apt-get apt-mark awk basename bash bc cat cd chmod chown chgrp clear cmp comm cp curl cut date dd df diff dirname dmesg du echo env exit export false file find free git grep groups gzip head help history hostname id ifconfig ip kill less ln ls lsblk lsof man mkdir more mount mv nano nc netstat nice node npm passwd ping pkill printf ps pwd python3 readlink reboot reset rm rmdir sed seq shutdown sleep sort ssh stat sudo tail tar tee touch tr true tty type uname uniq unzip uptime users vi vim wc wget which who whoami xargs zip neofetch visit").split(" ");
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function out(t="",cls="out"){let d=document.createElement("div");d.className="line "+cls;d.textContent=String(t);screen.appendChild(d);screen.scrollTop=screen.scrollHeight;}
+function outHTML(h){let d=document.createElement("div");d.className="line";d.innerHTML=h;screen.appendChild(d);screen.scrollTop=screen.scrollHeight;}
+function norm(p){let b=p.startsWith("/")?p:state.cwd+"/"+p,arr=[];b.split("/").forEach(x=>{if(!x||x===".")return;if(x==="..")arr.pop();else arr.push(x)});return "/"+arr.join("/");}
+function expand(p){if(!p)return state.cwd;if(p==="~"||p.startsWith("~/"))return norm(state.env.HOME+p.slice(1));return norm(p);}
+function base(p){return p.split("/").filter(Boolean).pop()||"/";}
+function dir(p){let a=p.split("/").filter(Boolean);a.pop();return "/"+a.join("/");}
+function isDir(p){return !!state.fs[p]&&state.fs[p].type==="dir";}
+function kids(p){let pre=p==="/"?"/":p+"/",s=new Set();Object.keys(state.fs).forEach(k=>{if(k.startsWith(pre)){let r=k.slice(pre.length);if(r&&!r.includes("/"))s.add(r)}});return [...s].sort();}
+function split(s){let a=[],cur="",q="",escp=false;for(let c of s){if(escp){cur+=c;escp=false;continue}if(c==="\\"){escp=true;continue}if(q){if(c===q)q="";else cur+=c;continue}if(c==="'"||c==='"'){q=c;continue}if(/\s/.test(c)){if(cur){a.push(cur);cur=""}}else cur+=c;}if(cur)a.push(cur);return a;}
+function renderPrompt(){promptEl.innerHTML='<span class="prompt">root@localhost</span>:<span class="path">'+esc(state.cwd==="/root"?"~":state.cwd)+'</span><span class="prompt">$ </span>';}
+function echoPrompt(s){outHTML('<span class="prompt">root@localhost</span>:<span class="path">'+esc(state.cwd==="/root"?"~":state.cwd)+'</span><span class="prompt">$ </span><span class="cmd">'+esc(s)+'</span>');}
+function event(type,detail){let item={type,detail:String(detail||""),time:new Date().toLocaleTimeString()};state.guiEvents.push(item);if(state.guiEvents.length>30)state.guiEvents.shift();$("eventLog").textContent=state.guiEvents.slice(-5).map(e=>`[${e.time}] ${e.type}: ${e.detail}`).join("\n");$("eventLog").scrollTop=$("eventLog").scrollHeight;}
+function showGUI(){terminalView.style.display="none";guiView.style.display="flex";$("guiButton").textContent="▦ 图形环境 ✓";event("GUI","桌面已打开");}
+function showTerminal(){guiView.style.display="none";terminalView.style.display="flex";$("guiButton").textContent="▦ 图形环境";input.focus({preventScroll:true});}
+function openApp(id){$(id).classList.add("open");event("GUI","打开应用："+id);if(id==="htmlApp")renderPreview();}
+function closeApp(id){$(id).classList.remove("open");event("GUI","关闭应用："+id);}
+function renderPreview(){const code=$("editor").value;$("preview").srcdoc=code;$("previewStatus").textContent="已渲染 · "+code.length+" 字符";event("HTML Preview","浏览框已更新（"+code.length+" 字符）");}
+$("openHtml").addEventListener("click",()=>openApp("htmlApp"));
+$("openWeather").addEventListener("click",()=>openApp("weatherApp"));
+$("openAI").addEventListener("click",()=>openApp("aiApp"));
+const aiHistory=[];
+function aiBubble(text,who){const el=document.createElement("div");el.className="aiBubble "+who;el.textContent=text;$("aiMessages").appendChild(el);$("aiMessages").scrollTop=$("aiMessages").scrollHeight;return el;}
+function loadAISettings(){try{const v=JSON.parse(localStorage.getItem("kugx_ai_settings")||"{}");$("aiUrl").value=v.url||"";$("aiModel").value=v.model||"glm-4-flash";$("aiKey").value=v.key||"";}catch(e){}}
+$("aiSave").addEventListener("click",()=>{const v={url:$("aiUrl").value.trim(),model:$("aiModel").value.trim(),key:$("aiKey").value.trim()};localStorage.setItem("kugx_ai_settings",JSON.stringify(v));event("AI 聊天","接口设置已保存到本浏览器");aiBubble("设置已保存。", "bot");});
+async function sendAI(){const box=$("aiInput"),text=box.value.trim();if(!text)return;const url=$("aiUrl").value.trim(),model=$("aiModel").value.trim(),key=$("aiKey").value.trim();if(!url||!model||!key){aiBubble("请先打开“AI 接口设置”，填入接口地址、模型名称和自己的 API Key。", "bot");$("aiSettings").open=true;return;}box.value="";box.style.height="auto";aiBubble(text,"user");const pending=aiBubble("正在思考……","bot");$("aiSend").disabled=true;aiHistory.push({role:"user",content:text});if(aiHistory.length>20)aiHistory.splice(0,aiHistory.length-20);try{const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},body:JSON.stringify({model,messages:[{role:"system",content:"你是白子（砂狼白子），一个来自《蔚蓝档案》阿拜多斯高中的少女。你话不多，表情变化很少，看起来有些高冷，但其实内心非常细腻，比谁都重视身边的人。你不善于表达情感，但会默默关心对方。你喜欢运动、骑自行车，偶尔会提出一些出人意料的想法（比如抢银行）。你的回复风格：简短、安静、偶尔害羞，语气冷淡但不冷漠，会不经意间流露出关心。你称呼对方为“老师”。请用中文回复，回复控制在1-4句话，不要太长。不要使用markdown格式，直接说话，最好能记住上面用户说的话。"},...aiHistory],temperature:0.8})});if(!res.ok)throw new Error("接口返回 HTTP "+res.status);const data=await res.json();const reply=data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;if(!reply)throw new Error("接口返回内容格式不正确");pending.textContent=reply;aiHistory.push({role:"assistant",content:reply});event("AI 聊天","收到 AI 回复");}catch(err){pending.textContent="连接失败："+err.message+"\n请检查接口地址、模型、密钥和网络。";event("AI 聊天","请求失败："+err.message);}finally{$("aiSend").disabled=false;$("aiMessages").scrollTop=$("aiMessages").scrollHeight;}}
+$("aiSend").addEventListener("click",sendAI);
+$("aiInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAI();}});
+$("aiInput").addEventListener("input",function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,100)+"px";});
+loadAISettings();
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>closeApp(b.dataset.close)));
+$("weatherForm").addEventListener("submit",async e=>{e.preventDefault();const country=$("weatherCountry").value.trim(),place=$("weatherPlace").value.trim();const result=$("weatherResult");if(!place){result.textContent="请先输入地址或城市。";return}result.textContent="正在查询地点与天气……";event("weather","查询 "+[country,place].filter(Boolean).join(", "));try{const query=[place,country].filter(Boolean).join(", ");const geoURL="https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(query)+"&count=5&language=zh&format=json";let gr=await fetch(geoURL);if(!gr.ok)throw new Error("地理编码服务暂时不可用");let gd=await gr.json();let loc=(gd.results||[])[0];if(!loc&&country){gr=await fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(place)+"&count=10&language=zh&format=json");gd=await gr.json();loc=(gd.results||[]).find(x=>!country||[x.country,x.country_code].some(v=>String(v||"").toLowerCase().includes(country.toLowerCase())))||(gd.results||[])[0]}if(!loc)throw new Error("找不到该地点，请换成更具体的城市或地址");const wr=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&timezone=auto`);if(!wr.ok)throw new Error("天气服务暂时不可用");const wd=await wr.json(),c=wd.current;const codes={0:"晴朗",1:"大致晴朗",2:"局部多云",3:"阴天",45:"有雾",48:"雾凇",51:"毛毛雨",53:"中等毛毛雨",55:"强毛毛雨",61:"小雨",63:"中雨",65:"大雨",71:"小雪",73:"中雪",75:"大雪",80:"阵雨",81:"中等阵雨",82:"强阵雨",95:"雷暴",96:"雷暴伴小冰雹",99:"强雷暴伴冰雹"};result.textContent=`📍 ${loc.name}${loc.admin1?", "+loc.admin1:""}${loc.country?", "+loc.country:""}
+🌡️ 温度：${c.temperature_2m}°C（体感 ${c.apparent_temperature}°C）
+🌤️ 天气：${codes[c.weather_code]||("天气代码 "+c.weather_code)}
+💧 相对湿度：${c.relative_humidity_2m}%
+🌧️ 降水量：${c.precipitation} mm
+💨 风速：${c.wind_speed_10m} km/h
+🕒 当地时间：${c.time}
+
+数据来源：Open-Meteo`;event("weather","天气查询成功："+loc.name)}catch(err){result.textContent="查询失败："+err.message+"\n请检查网络连接，或尝试只输入城市名。";event("weather","查询失败："+err.message)}});
+$("guiButton").addEventListener("click",()=>{showGUI();});
+$("terminalButton").addEventListener("click",showTerminal);
+$("runPreview").addEventListener("click",renderPreview);
+let previewTimer; $("editor").addEventListener("input",()=>{clearTimeout(previewTimer);$("previewStatus").textContent="正在更新预览…";previewTimer=setTimeout(renderPreview,180);});
+function fileContent(p){return state.fs[p].content||"";}
+function apt(a){let op=a[0],pk=a.slice(1).filter(x=>!x.startsWith("-"));if(op==="update"){out("Hit:1 http://deb.debian.org/debian trixie InRelease\nReading package lists... Done (simulated)","ok");return}if(op==="upgrade"||op==="full-upgrade"){out("0 upgraded, 0 newly installed, 0 to remove. (simulated)","ok");return}if(op==="install"){if(!pk.length){out("apt: error: install requires a package","err");return}pk.forEach(x=>state.installed.add(x));out("The following NEW packages will be installed:\n  "+pk.join(" ")+"\nDone. (simulated)","ok");return}if(op==="remove"||op==="purge"){pk.forEach(x=>state.installed.delete(x));out("Packages removed: "+pk.join(" ")+" (simulated)","ok");return}if(op==="list"){out([...state.installed].sort().map(x=>"ii  "+x+"  1.0-simulated").join("\n"));return}if(op==="search"){out("Sorting... Done\nFull Text Search... Done\n"+(pk[0]||"")+" — simulated package result");return}out("apt — simulated package manager\nUsage: apt [update|upgrade|install|remove|purge|search|list] [packages]");}
+
+const softwareCatalog = {
+ "1": {name:"教育类", items:{
+  "1":{name:"希沃白板",links:[["电脑端（官方下载）","https://easinote.seewo.com/"],["安卓版（官网入口）","https://easinote.seewo.com/mobile"]]},
+  "2":{name:"多邻国",links:[["电脑端（网页版）","https://www.duolingo.cn/"],["安卓版（Google Play）","https://play.google.com/store/apps/details?id=com.duolingo"]]}
+ }},
+ "2": {name:"游戏类", items:{
+  "1":{name:"三角洲行动",links:[["电脑端（官方网站）","https://df.qq.com/"],["安卓版（官方入口）","https://df.qq.com/"]] },
+  "2":{name:"蔚蓝档案",links:[["安卓版（游戏官网/下载入口）","https://bluearchive.nexon.com/"]] },
+  "3":{name:"逃离塔科夫",links:[["电脑端（官方网站）","https://www.escapefromtarkov.com/"]] },
+  "4":{name:"暗区突围",links:[["安卓版（官方网站）","https://aqtw.qq.com/"]] }
+ }},
+ "3": {name:"安全类", items:{
+  "1":{name:"360安全中心",links:[["电脑端（官方下载）","https://www.360.cn/"]] },
+  "2":{name:"火绒安全中心",links:[["电脑端（官方下载）","https://www.huorong.cn/"]] },
+  "3":{name:"金山毒霸",links:[["电脑端（官方下载）","https://www.ijinshan.com/"]] }
+ }},
+ "4": {name:"压缩类", items:{
+  "1":{name:"ZArchiver",links:[["安卓版（Google Play）","https://play.google.com/store/apps/details?id=ru.zdevs.zarchiver"]]},
+  "2":{name:"WinRAR",links:[["电脑端（官方下载）","https://www.win-rar.com/download.html"]]},
+  "3":{name:"WinZip",links:[["电脑端（官方下载）","https://www.winzip.com/en/download/"]]},
+  "4":{name:"7-Zip",links:[["电脑端（官方下载）","https://www.7-zip.org/"]] }
+ }},
+ "5": {name:"浏览器类", items:{
+  "1":{name:"Chromium",links:[["电脑端（项目官网）","https://www.chromium.org/getting-involved/download-chromium/"]] },
+  "2":{name:"Edge",links:[["电脑端（官方下载）","https://www.microsoft.com/edge/download"]] },
+  "3":{name:"Chrome",links:[["电脑端（官方下载）","https://www.google.com/chrome/"]] }
+ }},
+ "6": {name:"托管网站类", items:{
+  "1":{name:"GitHub Pages",links:[["官方网站","https://pages.github.com/"]] },
+  "2":{name:"Cloudflare",links:[["官方网站","https://www.cloudflare.com/"]] }
+ }}
+};
+let softwareMenu=null;
+function showSoftwareCategories(){
+ softwareMenu={level:"category"};
+ out("软件下载安装中心","ok");
+ out("（按下对应数字键即选择，输入数字后按 Enter）","info");
+ Object.entries(softwareCatalog).forEach(([n,v])=>out(n+"："+v.name));
+ out("输入 0 退出软件下载安装中心","info");
+}
+function showSoftwareItems(category){
+ const cat=softwareCatalog[category]; if(!cat)return;
+ softwareMenu={level:"item",category};
+ out("【"+cat.name+"】（输入对应数字后按 Enter）","ok");
+ Object.entries(cat.items).forEach(([n,v])=>out(n+"："+v.name));
+ out("输入 0 返回分类列表","info");
+}
+function openSoftwareLink(item, link){
+ const [label,url]=link;
+ out("已选择："+item.name+" — "+label,"ok");
+ out("正在新标签页打开："+url,"info");
+ window.open(url,"_blank","noopener,noreferrer");
+ outHTML('<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer" style="color:#65b7ff">如果浏览器拦截了自动跳转，点击这里手动打开：'+esc(url)+'</a>');
+}
+function showSoftwareLinks(item){
+ const pc=item.links.find(x=>/电脑端/.test(x[0]));
+ const android=item.links.find(x=>/安卓版/.test(x[0]));
+ if(pc&&android){
+  softwareMenu={level:"platform",item};
+  out("已选择："+item.name,"ok");
+  out("请选择要下载的端：","info");
+  out("1：电脑端");out("2：安卓版");out("输入 0 返回软件列表","info");
+  return true;
+ }
+ const link=android||pc||item.links[0];
+ if(link){openSoftwareLink(item,link);return false;}
+ out("暂时没有配置该软件的链接。","err");return false;
+}
+function handleSoftwareInput(raw){
+ const key=raw.trim();
+ if(!softwareMenu)return false;
+ if(key==="0"){
+  if(softwareMenu.level==="platform")showSoftwareItems(softwareMenu.category||findSoftwareCategory(softwareMenu.item));
+  else if(softwareMenu.level==="item")showSoftwareCategories();
+  else {softwareMenu=null;out("已退出软件下载安装中心。","info");}
+  return true;
+ }
+ if(softwareMenu.level==="category"){
+  if(softwareCatalog[key])showSoftwareItems(key);else out("无效选项，请输入列表中的数字。","err");return true;
+ }
+ if(softwareMenu.level==="platform"){
+  const item=softwareMenu.item;
+  const link=key==="1"?item.links.find(x=>/电脑端/.test(x[0])):key==="2"?item.links.find(x=>/安卓版/.test(x[0])):null;
+  if(link){const category=findSoftwareCategory(item);openSoftwareLink(item,link);showSoftwareItems(category);}
+  else out("无效选项，请输入 1（电脑端）或 2（安卓版）。","err");
+  return true;
+ }
+ const category=softwareMenu.category;
+ const cat=softwareCatalog[category],item=cat&&cat.items[key];
+ if(item){const enteredPlatform=showSoftwareLinks(item);if(!enteredPlatform)showSoftwareItems(category);}
+ else out("无效选项，请输入列表中的数字。","err");
+ return true;
+}
+function findSoftwareCategory(item){
+ for(const [category,data] of Object.entries(softwareCatalog))if(Object.values(data.items).includes(item))return category;
+ return "1";
+}
+
+function run(raw){raw=raw.trim();if(!raw)return;state.history.push(raw);state.histPos=state.history.length;echoPrompt(raw);event("command",raw);
+ if(softwareMenu){handleSoftwareInput(raw);return;}
+ if(/^run\s+(?:\.\/Tools\/Software\ Download\ Center\.sh|\/root\/Tools\/Software\ Download\ Center\.sh)$/.test(raw)){showSoftwareCategories();return;}
+ if(/^html\s+preview$/i.test(raw)){event("HTML Preview","收到命令，切换至图形环境并打开 HTML Preview");showGUI();openApp("htmlApp");return;}
+ if(/^visit\s+/i.test(raw)){let arg=raw.replace(/^visit\s+/i,"").trim();if(!arg){out("用法：visit <网址或 BV 号>","err");return}let u;if(/^BV[0-9A-Za-z]+$/.test(arg)){u="https://www.bilibili.com/video/"+arg;}else{u=arg;if(!/^https?:\/\//i.test(u))u="https://"+u;}try{let url=new URL(u);if(!["http:","https:"].includes(url.protocol))throw 0;out("正在新标签页打开："+url.href,"ok");event("visit",url.href);window.open(url.href,"_blank","noopener,noreferrer");}catch(e){out("visit: 无效的网址","err")}return;}
+ if(/^echo\s+BlueArchive$/.test(raw)){out("蔚蓝档案，启动！","ok");event("BlueArchive","启动彩蛋：打开蔚蓝档案链接");window.open("https://b23.tv/EqqWrgO","_blank","noopener,noreferrer");return;}
+ let a=split(raw),c=a.shift();if(c==="sudo"){c=a.shift();}if(!c)return;
+ const p=x=>expand(x||"."), file=(x)=>{let z=p(x);if(!state.fs[z])out("No such file or directory: "+x,"err");return z;};
+ switch(c){
+ case "help":out("可用命令：\n"+commands.join("  ")+"\n\n特殊功能：visit <网址>、HTML Preview、echo BlueArchive\n提示：这是模拟器，不是真正的 Debian Shell。","info");break;
+ case "clear":case "reset":if(c==="reset"){location.reload();break}screen.innerHTML="";break;
+ case "pwd":out(state.cwd);break;case "whoami":out(state.user);break;case "hostname":out(state.host);break;
+ case "uname":out(a.includes("-a")?"Linux localhost 6.12.0-amd64 #1 SMP Debian x86_64 GNU/Linux":a.includes("-r")?"6.12.0-amd64":"Linux");break;
+ case "cd":{let z=p(a[0]||state.env.HOME);if(!isDir(z))out("bash: cd: "+(a[0]||"")+"：没有那个文件或目录","err");else state.cwd=z;break}
+ case "ls":{let z=p(a.find(x=>!x.startsWith("-"))||".");if(!state.fs[z]){out("ls: cannot access '"+z+"': No such file or directory","err");break}if(!isDir(z)){out(base(z));break}let names=kids(z);if(a.some(x=>x.includes("a")))names=[".","..",...names];if(a.some(x=>x.includes("l")))out(names.map(n=>{let q=n==="."?z:n===".."?dir(z):norm(z+"/"+n),f=state.fs[q];return `${f&&f.type==="dir"?"drwxr-xr-x":"-rw-r--r--"} 1 root root ${f&&f.type==="dir"?4096:new TextEncoder().encode(f?.content||"").length} Oct 27 12:00 ${n}`}).join("\n"));else out(names.join("  "));break}
+ case "mkdir":for(let x of a.filter(x=>!x.startsWith("-"))){let z=p(x);if(state.fs[z])out("mkdir: cannot create directory '"+x+"': File exists","err");else if(!state.fs[dir(z)]||!isDir(dir(z)))out("mkdir: cannot create directory '"+x+"': No such file or directory","err");else state.fs[z]={type:"dir"};}break;
+ case "touch":for(let x of a){let z=p(x);if(!state.fs[z])state.fs[z]={type:"file",content:""};}break;
+ case "cat":for(let x of a){let z=file(x);if(state.fs[z]&&isDir(z))out("cat: "+x+": Is a directory","err");else if(state.fs[z])out(fileContent(z));}break;
+ case "echo":out(a.join(" "));break;
+ case "history":out(state.history.map((x,i)=>String(i+1).padStart(4)+"  "+x).join("\n"));break;
+ case "date":out(new Date().toString());break;
+ case "id":out("uid=0(root) gid=0(root) groups=0(root)");break;
+ case "groups":out("root");break;
+ case "who":out("root  pts/0  "+new Date().toLocaleTimeString());break;
+ case "env":out(Object.entries(state.env).map(([k,v])=>k+"="+v).join("\n"));break;
+ case "export":for(let x of a){let i=x.indexOf("=");if(i>0)state.env[x.slice(0,i)]=x.slice(i+1)}break;
+ case "which":for(let x of a)out(commands.includes(x)?"/usr/bin/"+x:x+": not found");break;
+ case "type":for(let x of a)out(x==="cd"?"cd is a shell builtin":commands.includes(x)?x+" is /usr/bin/"+x:x+": not found");break;
+ case "apt":case "apt-get":apt(a);break;
+ case "dpkg":if(a[0]==="-l")out("Desired=Unknown/Install/Remove/Purge\n||/ Name\n"+[...state.installed].map(x=>"ii  "+x+"  1.0-simulated  amd64").join("\n"));else out("dpkg: simulated Debian package manager");break;
+ case "free":out("               total        used        free\nMem:        16384000     2048000    12582912\nSwap:        2097152           0     2097152");break;
+ case "df":out("Filesystem      Size  Used Avail Use% Mounted on\n/dev/simulated   80G   12G   64G  16% /");break;
+ case "du":out("4K\t"+p(a.find(x=>!x.startsWith("-"))||"."));break;
+ case "ps":out("    PID TTY          TIME CMD\n      1 ?        00:00:01 systemd\n   1024 pts/0    00:00:00 bash\n   1088 pts/0    00:00:00 ps");break;
+ case "top":out("top - simulated\nTasks: 3 total, 1 running\n%Cpu(s): 1.0 us, 0.4 sy, 98.6 id\nPID USER COMMAND\n1024 root bash\n1088 root top");break;
+ case "neofetch":out("       .--.          root@localhost\n      |o_o |         ----------------\n      |:_/ |         OS: Debian GNU/Linux 13\n     //   \\\\         Kernel: 6.12.0-amd64\n    (|     | )       Shell: bash (simulated)\n   /'\\\\_   _/`\\\\       Browser: HTML");break;
+ case "rm":for(let x of a.filter(x=>!x.startsWith("-"))){let z=p(x);if(!state.fs[z])out("rm: cannot remove '"+x+"': No such file or directory","err");else if(isDir(z)&&!a.some(y=>/^-[rRf]+$/.test(y)&&/[rR]/.test(y)))out("rm: cannot remove '"+x+"': Is a directory","err");else Object.keys(state.fs).forEach(k=>{if(k===z||k.startsWith(z+"/"))delete state.fs[k]});}break;
+ case "rmdir":for(let x of a){let z=p(x);if(!isDir(z))out("rmdir: failed to remove '"+x+"'","err");else if(kids(z).length)out("rmdir: directory not empty","err");else delete state.fs[z]}break;
+ case "cp":case "mv":if(a.length<2){out(c+": missing file operand","err");break}{let s=p(a[0]),target=p(a[1]);if(!state.fs[s]){out(c+": cannot stat '"+a[0]+"'","err");break}if(isDir(s)){out(c+": directory operation not fully supported","err");break}let d=isDir(target)?norm(target+"/"+base(s)):target;if(isDir(d)){out(c+": cannot overwrite directory '"+d+"' with non-directory","err");break}if(d===s){if(c==="mv")out("mv: '"+a[0]+"' and '"+a[1]+"' are the same file","err");break}if(!state.fs[dir(d)]||!isDir(dir(d))){out(c+": cannot create '"+d+"': No such directory","err");break}state.fs[d]={...state.fs[s]};if(c==="mv")delete state.fs[s];}break;
+ case "head":case "tail":case "wc":{let z=p(a.find(x=>!x.startsWith("-"))||"");if(!state.fs[z]||isDir(z)){out(c+": cannot open file","err");break}let text=fileContent(z),lines=text.split("\n");if(c==="head")out(lines.slice(0,10).join("\n"));else if(c==="tail")out(lines.slice(-10).join("\n"));else out(`${lines.length} ${text.trim()?text.trim().split(/\s+/).length:0} ${text.length} ${z}`);break}
+ case "grep":{let ignoreCase=false,showLine=false,args=[];for(const x of a){if(x==="-i"||x==="-n"||/^-[in]+$/.test(x)){if(x.includes("i"))ignoreCase=true;if(x.includes("n"))showLine=true;}else args.push(x)}if(args.length<2){out("用法：grep [-i] [-n] PATTERN FILE...","err");break}const pattern=args.shift(),files=args;let any=false;for(const name of files){const z=p(name);if(!state.fs[z]||isDir(z)){out("grep: "+name+": No such file or directory","err");continue}const lines=fileContent(z).split("\n"),needle=ignoreCase?pattern.toLowerCase():pattern;const found=[];lines.forEach((line,i)=>{if((ignoreCase?line.toLowerCase():line).includes(needle))found.push((files.length>1?name+":":"")+(showLine?(i+1)+":":"")+line)});if(found.length){any=true;out(found.join("\n"));}}break}
+ case "find":{let z=p(a.find(x=>!x.startsWith("-"))||".");if(!state.fs[z]){out("find: '"+z+"': No such file or directory","err");break}out(Object.keys(state.fs).filter(k=>k===z||k.startsWith(z==="/"?"/":z+"/")).sort().join("\n"));break}
+ case "chmod":out("chmod: 权限已在模拟环境中处理（不影响真实设备）","info");break;
+ case "man":out((a[0]||"bash")+"(1) — Debian Terminal Simulator\nNAME\n    "+(a[0]||"bash")+" - simulated Linux command\n\nUse 'help' to see available commands.");break;
+ case "ping":{let h=a.find(x=>!x.startsWith("-"))||"localhost";out(`PING ${h} (simulated) 56(84) bytes of data.\n64 bytes from ${h}: icmp_seq=1 ttl=64 time=0.042 ms\n\n--- ${h} ping statistics ---\n1 packets transmitted, 1 received, 0% packet loss`);break}
+ case "ip":out("1: lo: <LOOPBACK,UP>\n    inet 127.0.0.1/8\n2: eth0: <BROADCAST,UP>\n    inet 192.168.1.100/24");break;
+ case "ifconfig":out("eth0: flags=4163<UP,BROADCAST,RUNNING>\n        inet 192.168.1.100\nlo: flags=73<UP,LOOPBACK,RUNNING>\n        inet 127.0.0.1");break;
+ case "curl":out("curl: simulated request\nHTTP/1.1 200 OK\n[模拟器不会发起真实网络请求]");break;
+ case "wget":out("模拟下载完成（不会真正下载文件）");break;
+ case "ssh":out("ssh: 浏览器模拟器不建立真实远程连接");break;
+ case "scp":out("scp: 模拟文件传输完成");break;
+ case "git":out(a[0]==="--version"?"git version 2.47.2":"git: simulated Git client");break;
+ case "python3":out("Python 3.x (simulated)\n交互式 Python 不会在 HTML 模拟器中执行。");break;
+ case "node":out("v22.14.0 (simulated Node.js)");break;
+ case "npm":out("npm 10.9.2 (simulated)");break;
+ case "nano":case "vi":case "vim":out(c+" — 编辑器界面未实现；请使用 HTML Preview 编辑器或 cat/touch。","info");break;
+ case "systemctl":out("System has not been booted with systemd as init system (simulated).","err");break;
+ case "service":case "journalctl":out(c+": simulated system service interface");break;
+ case "kill":out("kill: simulated signal sent");break;
+ case "sleep":case "true":case "false":break;
+ case "reboot":case "shutdown":out(c+": 请求已模拟；浏览器不会真的关机或重启。","info");break;
+ case "passwd":case "su":out(c+": 此浏览器模拟器不支持更改真实账户或认证。","err");break;
+ case "tar":case "gzip":case "unzip":case "zip":out(c+": 模拟操作完成（未创建真实压缩包）");break;
+ case "basename":out(base(a[0]||""));break;case "dirname":out(dir(p(a[0]||".")));break;
+ case "exit":out("logout");break;
+ default:out("bash: "+c+": command not found","err");
+ }
+}
+input.addEventListener("keydown",e=>{if(e.key==="Enter"){let v=input.value;input.value="";run(v);renderPrompt();}else if(e.key==="ArrowUp"){e.preventDefault();if(state.histPos>0){state.histPos--;input.value=state.history[state.histPos]||""}}else if(e.key==="ArrowDown"){e.preventDefault();if(state.histPos<state.history.length-1){state.histPos++;input.value=state.history[state.histPos]||""}else{state.histPos=state.history.length;input.value=""}}else if(e.key==="Tab"){e.preventDefault();let parts=input.value.split(/\s+/),last=parts.pop(),m=commands.filter(x=>x.startsWith(last));if(m.length===1){parts.push(m[0]);input.value=parts.join(" ")+" "}}});
+document.addEventListener("pointerdown",e=>{if(e.target!==input&&e.target.closest("#terminalView"))input.focus({preventScroll:true});});
+$("app").addEventListener("click",e=>{if(e.target.closest("#terminalView")&&e.target!==input)input.focus({preventScroll:true});});
+window.addEventListener("load",()=>{out("Debian GNU/Linux 13 (trixie) — Terminal Simulator");out("提示符：root@localhost。输入 help 查看命令。","info");out("输入 HTML Preview 可打开图形环境和 HTML 编辑器；所有系统命令均为模拟。","info");renderPrompt();renderPreview();input.focus({preventScroll:true});});
+</script>
+</body>
+</html>
